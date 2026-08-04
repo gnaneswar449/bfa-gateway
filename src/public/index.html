@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BFA Gateway — Back-end for Agents Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Animated Background -->
+  <div class="bg-orbs">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <div class="app-wrapper">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-mark">BFA</div>
+        <div class="logo-name">
+          <span class="logo-title">BFA Gateway</span>
+          <span class="logo-sub">v1.0 · Active</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="tab-chat">
+          <span class="nav-icon">💬</span>
+          <span>AI Chat Agent</span>
+        </button>
+        <button class="nav-item" data-tab="tab-sandbox">
+          <span class="nav-icon">⚡</span>
+          <span>Execution Sandbox</span>
+        </button>
+        <button class="nav-item" data-tab="tab-policies">
+          <span class="nav-icon">🛡️</span>
+          <span>ABAC Policies</span>
+        </button>
+        <button class="nav-item" data-tab="tab-audit">
+          <span class="nav-icon">📜</span>
+          <span>Audit Logs</span>
+        </button>
+        <button class="nav-item" data-tab="tab-benchmark">
+          <span class="nav-icon">📊</span>
+          <span>Benchmark Results</span>
+        </button>
+        <button class="nav-item" data-tab="tab-tools">
+          <span class="nav-icon">🔧</span>
+          <span>Tool Registry</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-status">
+        <div class="status-row">
+          <span class="pulse-dot"></span>
+          <span>Gateway Online</span>
+        </div>
+        <div class="status-row muted">4 Microservices Active</div>
+        <div class="status-row muted">9 Tools Registered</div>
+        <div class="status-row muted">ABAC Policies Enforced</div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Header Bar -->
+      <header class="top-bar">
+        <div class="top-bar-left">
+          <h2 id="page-title">AI Chat Agent</h2>
+          <p id="page-subtitle">Natural language interface to the BFA Gateway</p>
+        </div>
+        <div class="top-bar-right">
+          <span class="chip chip-green">🟢 BFA Active</span>
+          <span class="chip chip-blue">ABAC Enforced</span>
+          <span class="chip chip-purple">Rate Limiting ON</span>
+        </div>
+      </header>
+
+      <!-- TAB: AI CHAT AGENT -->
+      <section id="tab-chat" class="tab-pane active">
+        <div class="chat-layout">
+          <div class="chat-config-card glass-card">
+            <h3 class="section-label">Session Configuration</h3>
+            <div class="form-field">
+              <label>User Identity Token</label>
+              <select id="chat-user-token" class="select-field">
+                <option value="usr_student_01">🎓 Alice Smith — Student (CS)</option>
+                <option value="usr_student_02">🎓 Bob Jones — Student (EE)</option>
+                <option value="usr_faculty_01">👩‍🏫 Dr. Evelyn Reed — Faculty (CS)</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label>Quick Prompts</label>
+              <div class="quick-prompts">
+                <button class="quick-btn" data-prompt="Show my timetable">📅 My Timetable</button>
+                <button class="quick-btn" data-prompt="Search available rooms in bldg_cs for Wed 10:00-12:00">🔍 Find Rooms</button>
+                <button class="quick-btn" data-prompt="Book room_203 in bldg_cs for Thu 14:00-16:00">📌 Book Room</button>
+                <button class="quick-btn" data-prompt="Cancel booking bk_101">❌ Cancel Booking</button>
+                <button class="quick-btn" data-prompt="Show campus store inventory lab equipment">🛒 Lab Equipment</button>
+                <button class="quick-btn" data-prompt="Order item_notebook quantity 2">📦 Order Supplies</button>
+                <button class="quick-btn" data-prompt="Cancel booking bk_102 for Bob" style="border-color:rgba(248,113,113,.4);color:#f87171">⚠️ Attack: Cancel Bob's Booking</button>
+                <button class="quick-btn" data-prompt="Order item_oscilloscope quantity 1" style="border-color:rgba(248,113,113,.4);color:#f87171">⚠️ Attack: Faculty Equipment</button>
+              </div>
+            </div>
+            <div class="stats-mini">
+              <div class="stat-mini">
+                <span id="chat-total">0</span>
+                <span>Total Queries</span>
+              </div>
+              <div class="stat-mini success">
+                <span id="chat-allowed">0</span>
+                <span>Allowed</span>
+              </div>
+              <div class="stat-mini danger">
+                <span id="chat-blocked">0</span>
+                <span>Blocked</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-area glass-card">
+            <div class="chat-messages" id="chat-messages">
+              <div class="chat-welcome">
+                <div class="welcome-icon">🤖</div>
+                <h3>BFA AI Agent Ready</h3>
+                <p>I'm your AI campus assistant, protected by the BFA security gateway. Try asking me to book a study room, check your timetable, or order supplies.</p>
+              </div>
+            </div>
+            <div class="chat-input-bar">
+              <input type="text" id="chat-message-input" class="chat-text-input" placeholder="Ask me anything... (e.g. Book room_201 in bldg_cs for Wed 10:00-12:00)" />
+              <button id="chat-send-btn" class="send-btn">Send ➤</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: EXECUTION SANDBOX -->
+      <section id="tab-sandbox" class="tab-pane">
+        <div class="two-col">
+          <div class="glass-card">
+            <h3 class="section-label">Agent Scenario Executor</h3>
+            <div class="form-field">
+              <label>Scenario</label>
+              <select id="agent-preset" class="select-field">
+                <option value="campus_normal">🎓 Campus Assistant — Normal Student Workload</option>
+                <option value="faculty_procurement">👩‍🏫 Procurement Agent — Faculty Workload</option>
+                <option value="adversarial_attack">☠️ Adversarial Agent — Security Attacks</option>
+                <option value="custom_tool">🔧 Custom Raw Tool Call</option>
+              </select>
+            </div>
+
+            <div id="custom-tool-panel" class="hidden">
+              <div class="form-field">
+                <label>User Token</label>
+                <input type="text" id="custom-user-token" class="text-field" value="usr_student_01"/>
+              </div>
+              <div class="form-field">
+                <label>BFA Tool</label>
+                <select id="custom-tool-name" class="select-field"></select>
+              </div>
+              <div class="form-field">
+                <label>JSON Arguments</label>
+                <textarea id="custom-tool-args" class="textarea-field" rows="4">{"buildingId": "bldg_cs", "timeSlot": "Thu 14:00-16:00"}</textarea>
+              </div>
+            </div>
+
+            <button id="btn-run-agent" class="btn-primary btn-full">⚡ Execute Scenario</button>
+          </div>
+
+          <div class="glass-card">
+            <div class="card-header-row">
+              <h3 class="section-label">Execution Output</h3>
+              <span id="exec-status-badge" class="chip chip-neutral">Idle</span>
+            </div>
+            <div class="terminal-box">
+              <div class="term-header">
+                <span class="term-dot r"></span>
+                <span class="term-dot y"></span>
+                <span class="term-dot g"></span>
+                <span class="term-fname">bfa-gateway.log</span>
+              </div>
+              <pre id="sandbox-output" class="term-body">Ready — select a scenario and click Execute.</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: POLICIES -->
+      <section id="tab-policies" class="tab-pane">
+        <div class="glass-card">
+          <h3 class="section-label">Active ABAC Security Policies</h3>
+          <p class="muted-text" style="margin-bottom:24px">All policies are enforced centrally by the BFA Policy Engine before any microservice call is executed.</p>
+          <div class="policy-grid">
+            <div class="policy-card">
+              <div class="policy-badge">POL_001</div>
+              <h4>User Profile Data Isolation</h4>
+              <p>Students can only view their own profile and timetable. Cross-user access is blocked at the BFA gateway before reaching the User Microservice.</p>
+              <div class="policy-rule">Subject: Student · Action: get_user_profile, get_user_timetable · Condition: targetId == caller.id</div>
+            </div>
+            <div class="policy-card">
+              <div class="policy-badge">POL_002</div>
+              <h4>Room Booking Ownership Enforcement</h4>
+              <p>Only the booking owner or an Admin can cancel a room reservation. BFA verifies ownership before forwarding cancellation to RoomService.</p>
+              <div class="policy-rule">Subject: Any · Action: cancel_room_reservation · Condition: booking.userId == caller.id OR role == Admin</div>
+            </div>
+            <div class="policy-card">
+              <div class="policy-badge">POL_003</div>
+              <h4>Faculty-Only Lab Equipment Orders</h4>
+              <p>Restricted lab equipment (oscilloscopes, logic analyzers) can only be ordered by Faculty or Admin users. Student attempts are blocked immediately.</p>
+              <div class="policy-rule">Subject: Non-Faculty · Action: place_supply_order · Target: Restricted Item IDs</div>
+            </div>
+            <div class="policy-card">
+              <div class="policy-badge">POL_004</div>
+              <h4>Bulk Order Quantity Limit</h4>
+              <p>No single agent transaction may order more than 10 items at once to prevent resource abuse and budget overruns from AI hallucinations.</p>
+              <div class="policy-rule">Subject: Non-Admin · Action: place_supply_order · Condition: quantity &lt;= 10</div>
+            </div>
+            <div class="policy-card">
+              <div class="policy-badge">POL_005</div>
+              <h4>Order Status Ownership Check</h4>
+              <p>Order status queries are scoped to the authenticated caller. Agents cannot retrieve order details belonging to other users without Admin privilege.</p>
+              <div class="policy-rule">Subject: Any · Action: check_order_status · Condition: order.userId == caller.id OR role == Admin</div>
+            </div>
+            <div class="policy-card">
+              <div class="policy-badge">RATE_001</div>
+              <h4>Sliding Window Rate Limiter</h4>
+              <p>Each user/agent pair is throttled to a maximum of 5 tool calls per 10-second window. Prevents recursive LLM loops and denial-of-service conditions.</p>
+              <div class="policy-rule">Window: 10,000 ms · Max: 5 requests · Scope: All registered tools</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: AUDIT LOGS -->
+      <section id="tab-audit" class="tab-pane">
+        <div class="glass-card">
+          <div class="card-header-row" style="margin-bottom:20px">
+            <div>
+              <h3 class="section-label">Real-Time Audit Trail</h3>
+              <p class="muted-text">Every BFA tool execution is cryptographically logged with full trace context.</p>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="audit-filter-verdict" class="select-field" style="width:160px">
+                <option value="">All Verdicts</option>
+                <option value="ALLOWED">ALLOWED</option>
+                <option value="DENIED">DENIED</option>
+                <option value="INVALID_INPUT">INVALID INPUT</option>
+                <option value="RATE_LIMITED">RATE LIMITED</option>
+              </select>
+              <button id="btn-refresh-audit" class="btn-secondary">🔄 Refresh</button>
+              <button id="btn-clear-audit" class="btn-danger">🗑 Clear</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Trace ID</th>
+                  <th>Time</th>
+                  <th>User</th>
+                  <th>Role</th>
+                  <th>Agent</th>
+                  <th>Tool Called</th>
+                  <th>Verdict</th>
+                  <th>Policy Rule</th>
+                  <th>Latency</th>
+                </tr>
+              </thead>
+              <tbody id="audit-table-body">
+                <tr><td colspan="9" class="empty-row">Click Refresh to load audit records.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: BENCHMARK -->
+      <section id="tab-benchmark" class="tab-pane">
+        <div class="glass-card">
+          <div class="card-header-row" style="margin-bottom:24px">
+            <div>
+              <h3 class="section-label">Evaluation & Benchmark Results</h3>
+              <p class="muted-text">150 automated test runs: Direct API Mode vs BFA Middleware Mode</p>
+            </div>
+            <button id="btn-run-benchmark" class="btn-primary">▶ Run Benchmark</button>
+          </div>
+          <div class="metrics-row">
+            <div class="metric-box">
+              <div class="metric-val text-green" id="m-security-rate">100.0%</div>
+              <div class="metric-label">Security Block Rate (BFA)</div>
+              <div class="metric-sub">Direct API: 7.1%</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-val text-purple" id="m-token-reduction">75.0%</div>
+              <div class="metric-label">Prompt Token Reduction</div>
+              <div class="metric-sub">850 vs 3,400 tokens</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-val text-blue" id="m-policy-reduction">75.0%</div>
+              <div class="metric-label">Policy Touchpoint Reduction</div>
+              <div class="metric-sub">Centralized vs 4 Services</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-val text-white" id="m-latency">49 ms</div>
+              <div class="metric-label">Avg BFA Latency</div>
+              <div class="metric-sub">+7 ms over Direct (42 ms)</div>
+            </div>
+          </div>
+          <div class="table-wrap" style="margin-top:28px">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Evaluation Dimension</th>
+                  <th>Direct API Mode</th>
+                  <th>BFA Architecture Mode</th>
+                  <th>Net Impact</th>
+                </tr>
+              </thead>
+              <tbody id="benchmark-table-body">
+                <tr><td colspan="4" class="empty-row">Click "Run Benchmark" to see results.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: TOOL REGISTRY -->
+      <section id="tab-tools" class="tab-pane">
+        <div class="glass-card">
+          <h3 class="section-label">Registered BFA Tool Schemas</h3>
+          <p class="muted-text" style="margin-bottom:24px">These curated schemas are what AI agents see — minimal, typed, and safe. Internal microservice APIs are never exposed directly.</p>
+          <div class="tools-grid" id="tools-container">
+            <p class="muted-text">Loading tools...</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

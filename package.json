@@ -1,0 +1,28 @@
+{
+  "name": "bfa-gateway",
+  "version": "1.0.0",
+  "description": "Back-end for Agents (BFA) — A Standard Backend Layer for Safe AI Agent Integration",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').cpSync('src/public', 'dist/public', {recursive: true})\"",
+    "start": "npm run build && node dist/server.js",
+    "dev":   "node dist/server.js",
+    "agent": "npm run build && node dist/cli.js",
+    "test":  "npm run build && node dist/evaluation/benchmarkRunner.js"
+  },
+  "keywords": ["AI", "agents", "backend", "BFA", "security", "middleware"],
+  "author": "gnaneswar449",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^7.0.2"
+  }
+}
