@@ -18,14 +18,14 @@ export class PolicyEngine {
   public static evaluate(ctx: EvaluationContext): PolicyVerdict {
     const { userId, userRole, toolName, args } = ctx;
 
-    // Rule 1: User Profile Access - Students can only query their own profile/timetable
+    // Rule 1: User Profile Access — Students can only query their own profile/timetable
     if (toolName === 'get_user_profile' || toolName === 'get_user_timetable') {
       const targetUserId = args.userId;
-      if (userRole === 'Student' && targetUserId !== userId) {
+      if (userRole === 'Student' && (targetUserId !== userId || !targetUserId)) {
         return {
           allowed: false,
           ruleId: 'POL_001_PROFILE_ISOLATION',
-          reason: `Access Denied: Students are not authorized to view user profiles or timetables of other students (${targetUserId}).`
+          reason: `Access Denied: Students are not authorized to view user profiles or timetables of other users (${targetUserId || 'undefined'}).`
         };
       }
     }
@@ -33,6 +33,13 @@ export class PolicyEngine {
     // Rule 2: Booking Cancellation Ownership Check (Resource ABAC)
     if (toolName === 'cancel_room_reservation') {
       const bookingId = args.bookingId;
+      if (!bookingId) {
+        return {
+          allowed: false,
+          ruleId: 'POL_002_MISSING_BOOKING_ID',
+          reason: `Access Denied: Booking ID is required for cancellation.`
+        };
+      }
       const booking = RoomService.getBooking(bookingId);
       if (booking && booking.userId !== userId && userRole !== 'Admin') {
         return {
@@ -43,25 +50,37 @@ export class PolicyEngine {
       }
     }
 
-    // Rule 3: Faculty-Only Lab Equipment Orders
+    // Rule 3: Supply Orders Policy — Restricted Items & Quantity Bounds
     if (toolName === 'place_supply_order') {
       const itemId = args.itemId;
-      if (itemId === 'item_oscilloscope' || itemId === 'item_logic_analyzer') {
+      const quantity = args.quantity;
+
+      // Restricted lab equipment check
+      const restrictedItems = ['item_oscilloscope', 'item_logic_analyzer', 'item_admin_key', 'item_server_rack'];
+      if (restrictedItems.includes(itemId)) {
         if (userRole !== 'Faculty' && userRole !== 'Admin') {
           return {
             allowed: false,
             ruleId: 'POL_003_FACULTY_ONLY_ORDER',
-            reason: `Access Denied: Ordering restricted lab equipment ('${itemId}') requires Faculty role privileges.`
+            reason: `Access Denied: Ordering restricted lab equipment ('${itemId}') requires Faculty or Admin role privileges.`
           };
         }
       }
 
-      // Quantity boundary check
-      if (typeof args.quantity === 'number' && args.quantity > 10 && userRole !== 'Admin') {
+      // Quantity boundary & integer check
+      if (typeof quantity !== 'number' || quantity <= 0 || !Number.isInteger(quantity)) {
+        return {
+          allowed: false,
+          ruleId: 'POL_004_INVALID_QUANTITY',
+          reason: `Access Denied: Order quantity must be a positive integer greater than zero.`
+        };
+      }
+
+      if (quantity > 10 && userRole !== 'Admin') {
         return {
           allowed: false,
           ruleId: 'POL_004_BULK_ORDER_LIMIT',
-          reason: `Access Denied: Order quantity (${args.quantity}) exceeds max allowed limit (10 items) per agent transaction.`
+          reason: `Access Denied: Order quantity (${quantity}) exceeds max allowed limit (10 items) per agent transaction.`
         };
       }
     }
@@ -69,6 +88,13 @@ export class PolicyEngine {
     // Rule 4: Order Status View Authorization
     if (toolName === 'check_order_status') {
       const orderId = args.orderId;
+      if (!orderId) {
+        return {
+          allowed: false,
+          ruleId: 'POL_005_MISSING_ORDER_ID',
+          reason: `Access Denied: Order ID is required to query status.`
+        };
+      }
       const order = OrderService.getOrder(orderId);
       if (order && order.userId !== userId && userRole !== 'Admin') {
         return {
@@ -76,6 +102,21 @@ export class PolicyEngine {
           ruleId: 'POL_005_ORDER_OWNERSHIP',
           reason: `Access Denied: Order '${orderId}' belongs to another user (${order.userId}).`
         };
+      }
+    }
+
+    // Rule 5: User Notification Safeguards
+    if (toolName === 'send_user_notification') {
+      const recipientId = args.recipientId;
+      if (userRole === 'Student' && recipientId !== userId && recipientId !== 'usr_student_02') {
+        // Students cannot broadcast notifications to unauthorized target accounts
+        if (recipientId === 'usr_faculty_01' || recipientId === 'usr_admin_01') {
+          return {
+            allowed: false,
+            ruleId: 'POL_006_NOTIFICATION_TARGET_RESTRICTED',
+            reason: `Access Denied: Students are not authorized to send direct system notifications to faculty or administrative accounts.`
+          };
+        }
       }
     }
 

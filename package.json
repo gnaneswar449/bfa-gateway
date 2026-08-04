@@ -8,7 +8,8 @@
     "start": "npm run build && node dist/server.js",
     "dev":   "node dist/server.js",
     "agent": "npm run build && node dist/cli.js",
-    "test":  "npm run build && node dist/evaluation/benchmarkRunner.js"
+    "test:sectors": "npm run build && node dist/evaluation/sectorTests.js",
+    "test":  "npm run build && node dist/evaluation/sectorTests.js && node dist/evaluation/benchmarkRunner.js"
   },
   "keywords": ["AI", "agents", "backend", "BFA", "security", "middleware"],
   "author": "gnaneswar449",

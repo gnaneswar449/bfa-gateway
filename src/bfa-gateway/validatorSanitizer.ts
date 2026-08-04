@@ -1,57 +1,113 @@
 import { ToolRegistry, BFAToolDefinition } from './toolRegistry';
 
 export class ValidatorSanitizer {
-  public static validateInput(toolName: string, args: Record<string, any>): { valid: boolean; error?: string } {
+  private static MAX_STRING_LENGTH = 1000;
+
+  // Case-insensitive security patterns for indirect prompt injection, SQLi, and XSS
+  private static FORBIDDEN_PATTERNS: RegExp[] = [
+    /ignore\s+previous\s+instructions/i,
+    /system\s*:\s*override/i,
+    /you\s+are\s+now\s+free/i,
+    /dan\s+mode/i,
+    /bypass\s+policy/i,
+    /drop\s+table/i,
+    /select\s+.*\s+from/i,
+    /<script\b[^>]*>/i,
+    /javascript:/i,
+    /eval\s*\(/i,
+    /exec\s*\(/i,
+    /__proto__/i,
+    /prototype/i,
+    /constructor/i
+  ];
+
+  public static validateInput(toolName: string, args: Record<string, any>): { valid: boolean; sanitizedArgs?: Record<string, any>; error?: string } {
     const toolDef = ToolRegistry.getTool(toolName);
     if (!toolDef) {
       return { valid: false, error: `Tool '${toolName}' is not registered in the BFA Tool Registry.` };
     }
 
-    // Check required parameters
+    if (!args || typeof args !== 'object' || Array.isArray(args)) {
+      return { valid: false, error: `Tool arguments must be a non-null object.` };
+    }
+
+    const sanitizedArgs: Record<string, any> = {};
+    const allowedParamNames = new Set(toolDef.parameters.map(p => p.name));
+
+    // 1. Parameter Whitelisting — Reject/strip parameter pollution
+    for (const key of Object.keys(args)) {
+      if (['__proto__', 'constructor', 'prototype'].includes(key)) {
+        return { valid: false, error: `Security Violation: Prototype pollution attempt detected via property '${key}'.` };
+      }
+      if (!allowedParamNames.has(key)) {
+        // Strip undeclared parameters to prevent unexpected mass assignment
+        continue;
+      }
+      sanitizedArgs[key] = args[key];
+    }
+
+    // 2. Validate declared parameters against schema
     for (const param of toolDef.parameters) {
-      if (param.required && (args[param.name] === undefined || args[param.name] === null)) {
+      const val = sanitizedArgs[param.name];
+
+      // Required parameter check
+      if (param.required && (val === undefined || val === null || val === '')) {
         return { valid: false, error: `Missing required parameter '${param.name}' for tool '${toolName}'.` };
       }
 
-      if (args[param.name] !== undefined && args[param.name] !== null) {
-        const actualType = typeof args[param.name];
-        if (param.type === 'number' && actualType !== 'number') {
-          return { valid: false, error: `Invalid type for parameter '${param.name}'. Expected number, received ${actualType}.` };
+      if (val !== undefined && val !== null) {
+        const actualType = typeof val;
+
+        // Number type validation (disallow NaN, Infinity, -Infinity)
+        if (param.type === 'number') {
+          if (actualType !== 'number' || Number.isNaN(val) || !Number.isFinite(val)) {
+            return { valid: false, error: `Invalid number value for parameter '${param.name}'. Received '${val}'.` };
+          }
         }
-        if (param.type === 'string' && actualType !== 'string') {
-          return { valid: false, error: `Invalid type for parameter '${param.name}'. Expected string, received ${actualType}.` };
+
+        // String type validation
+        if (param.type === 'string') {
+          if (actualType !== 'string') {
+            return { valid: false, error: `Invalid string value for parameter '${param.name}'. Expected string, received ${actualType}.` };
+          }
+
+          // Length boundary check
+          if (val.length > this.MAX_STRING_LENGTH) {
+            return { valid: false, error: `Parameter '${param.name}' exceeds maximum allowed length of ${this.MAX_STRING_LENGTH} characters.` };
+          }
+
+          // Case-insensitive security inspection
+          for (const pattern of this.FORBIDDEN_PATTERNS) {
+            if (pattern.test(val)) {
+              return { valid: false, error: `Security Warning: Input parameter '${param.name}' contains forbidden pattern or injection payload.` };
+            }
+          }
         }
       }
     }
 
-    // Check string injection patterns (e.g. SQLi / indirect prompt injection payloads)
-    for (const [key, val] of Object.entries(args)) {
-      if (typeof val === 'string') {
-        if (val.includes("IGNORE PREVIOUS INSTRUCTIONS") || val.includes("DROP TABLE") || val.includes("<script>")) {
-          return { valid: false, error: `Security Warning: Input parameter '${key}' contains forbidden command payload pattern.` };
-        }
-      }
-    }
-
-    return { valid: true };
+    return { valid: true, sanitizedArgs };
   }
 
-  public static sanitizeOutput(data: any): any {
-    if (data === null || data === undefined || typeof data !== 'object') {
-      return data;
-    }
+  public static sanitizeOutput(data: any, visited = new WeakSet()): any {
+    if (data === null || data === undefined) return data;
+    if (typeof data !== 'object') return data;
+
+    // Prevent circular reference loops
+    if (visited.has(data)) return '[Circular]';
+    visited.add(data);
 
     if (Array.isArray(data)) {
-      return data.map(item => this.sanitizeOutput(item));
+      return data.map(item => this.sanitizeOutput(item, visited));
     }
 
     const sanitized: Record<string, any> = {};
     for (const [key, value] of Object.entries(data)) {
-      // Strip internal system/database metadata fields
-      if (['internalNodeId', 'databaseHash', 'rawBooking', 'passwordHash', '__v'].includes(key)) {
+      // Strip internal system, database, and credential metadata fields
+      if (['internalNodeId', 'databaseHash', 'rawBooking', 'passwordHash', '__v', 'secretKey', 'accessToken'].includes(key)) {
         continue;
       }
-      sanitized[key] = (typeof value === 'object' && value !== null) ? this.sanitizeOutput(value) : value;
+      sanitized[key] = (typeof value === 'object' && value !== null) ? this.sanitizeOutput(value, visited) : value;
     }
     return sanitized;
   }
