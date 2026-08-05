@@ -4,13 +4,14 @@
 ### *A Standardized Backend Architectural Layer for Secure Autonomous AI Agent Integration*
 
 [![Build Status](https://img.shields.io/badge/Build-Passing-34D399?style=for-the-badge&logo=github-actions&logoColor=white)](https://github.com/gnaneswar449/bfa-gateway)
-[![Security Tests](https://img.shields.io/badge/Security_Tests-21%2F21_Passed-38BDF8?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/gnaneswar449/bfa-gateway)
+[![Security Tests](https://img.shields.io/badge/Security_Tests-24%2F24_Passed-38BDF8?style=for-the-badge&logo=shield&logoColor=white)](https://github.com/gnaneswar449/bfa-gateway)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Express](https://img.shields.io/badge/Express-5.x-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-24.x-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-ISC-A78BFA?style=for-the-badge)](https://opensource.org/licenses/ISC)
 
-[Overview](#-overview--abstract) • [Architecture](#%EF%B8%8F-system-architecture) • [Security Features](#-core-security-sectors) • [Evaluation](#-benchmark--security-evaluations) • [Dashboard](#-web-dashboard-ui) • [Quickstart](#-quickstart--installation) • [Citation](#-academic-citation)
+[Overview](#-overview--abstract) • [Architecture](#%EF%B8%8F-system-architecture) • [Security Sectors](#-core-security-sectors) • [Evaluation](#-benchmark--security-evaluations) • [Dashboard](#-web-dashboard-ui) • [Quickstart](#-quickstart--installation) • [Citation](#-academic-citation)
 
 ---
 
@@ -23,10 +24,12 @@ As Large Language Model (LLM) agents transition from passive chatbots to autonom
 **Back-end for Agents (BFA)** is an enterprise-grade backend architectural pattern and reference implementation designed to solve this security gap. Operating as a secure proxy between autonomous AI agents and internal microservices, BFA provides:
 
 1. **Centralized Attribute-Based Access Control (ABAC):** Evaluates user role, agent identity, resource ownership, and payload bounds prior to microservice execution.
-2. **Strict Schema Whitelisting & Input Sanitization:** Rejects parameter pollution, `NaN`/`Infinity` boundary violations, and case-insensitive indirect prompt injection payloads.
-3. **Dual-Bucket Rate Limiting:** Throttles agent requests per-tool and per-user globally to prevent recursive execution loops and DoS.
-4. **Output Metadata Stripping:** Automatically prunes database hashes, system node IDs, and credential fields before returning responses to the agent context.
-5. **Unified Immutable Audit Trail:** Logs 100% of execution attempts with cryptographic trace IDs and execution metrics.
+2. **Active Defense Honeypots (Decoy Traps):** Intercepts rogue or jailbroken agents attempting privilege escalation via decoy tools (`export_system_credentials`, `grant_admin_privileges`).
+3. **Dynamic Tool Schema Pruning:** Generates role-scoped tool schemas (`ToolRegistry.getSchemasForLLM`) to shrink prompt token context size by **75%** and eliminate exposed attack vectors.
+4. **Cryptographic Output Attestation:** Automatically attaches HMAC SHA-256 signatures (`bfa_attest_...`) to all microservice responses to guarantee data provenance and combat AI hallucinations.
+5. **Strict Schema Whitelisting & Input Sanitization:** Rejects parameter pollution, `NaN`/`Infinity` boundary violations, and case-insensitive indirect prompt injection payloads.
+6. **Dual-Bucket Rate Limiting:** Throttles agent requests per-tool and per-user globally to prevent recursive execution loops and DoS.
+7. **Unified Immutable Audit Trail:** Logs 100% of execution attempts with cryptographic trace IDs (`tr_xxxxx`) and execution metrics.
 
 ---
 
@@ -44,18 +47,23 @@ The BFA Gateway decouples LLM tool exposure from internal service infrastructure
 │                           BFA GATEWAY LAYER                              │
 │                                                                          │
 │  ┌───────────────────────┐             ┌──────────────────────────────┐  │
-│  │   Auth Mapper         │ ──────────> │   Validator & Sanitizer      │  │
-│  │   (Token ➔ Identity)  │             │   (Whitelisting & Prompt San)│  │
+│  │   Auth Mapper         │ ──────────> │  Active Defense Honeypots    │  │
+│  │   (Token ➔ Identity)  │             │  (Decoy Tool Interception)   │  │
 │  └───────────────────────┘             └──────────────┬───────────────┘  │
 │                                                       │                  │
 │  ┌───────────────────────┐             ┌──────────────▼───────────────┐  │
-│  │   Rate Limiter        │ <────────── │   Policy Engine (ABAC)       │  │
-│  │   (Dual Bucket)       │             │   (6 Core Security Rules)    │  │
+│  │   Rate Limiter        │ <────────── │   Validator & Sanitizer      │  │
+│  │   (Dual Bucket)       │             │   (Whitelisting & Prompt San)│  │
+│  └───────────────────────┘             └──────────────┬───────────────┘  │
+│                                                       │                  │
+│  ┌───────────────────────┐             ┌──────────────▼───────────────┐  │
+│  │   Audit Logger        │ <────────── │   Policy Engine (ABAC)       │  │
+│  │   (Disk / PostgreSQL) │             │   (6 Core Security Rules)    │  │
 │  └───────────────────────┘             └──────────────┬───────────────┘  │
 │                                                       │                  │
 │  ┌───────────────────────┐                            │                  │
-│  │   Audit Logger        │ <──────────────────────────┘                  │
-│  │   (Disk / PostgreSQL) │                                               │
+│  │  HMAC Attest Generator│ <──────────────────────────┘                  │
+│  │  (Data Provenance)    │                                               │
 │  └───────────────────────┘                                               │
 └──────────────────────────────────────┬───────────────────────────────────┘
                                        │ (Authorized Execution)
@@ -76,6 +84,9 @@ The BFA Gateway decouples LLM tool exposure from internal service infrastructure
 | **Sector 3** | **Dual-Bucket Rate Limiter**| Per-tool sliding window (max 5 calls / 10s) + global user window (max 12 calls / 10s across all tools). | Recursive Agent Loops, Denial of Service (DoS) |
 | **Sector 4** | **Auth & Identity Mapper** | Maps bearer tokens to authenticated context (`userId`, `role`, `agentId`). | Token Impersonation, Unauthenticated Access |
 | **Sector 5** | **Unified Audit Logger** | Cryptographic trace logging (`tr_xxxxx`) persisted to disk with response payloads & latency metrics. | Audit Fragmentation, Compliance Non-repudiation |
+| **Sector 6** | **Active Defense Honeypots** | Decoy tool traps (`export_system_credentials`, `grant_admin_privileges`) returning `HONEYPOT_TRIGGERED`. | Jailbreak Exploits, Unauthorized Privilege Escalation |
+| **Sector 7** | **Dynamic Schema Pruning** | Generates role-scoped tool schemas (`ToolRegistry.getSchemasForLLM`) based on user identity. | Token Window Exhaustion, Unauthorized Tool Visibility |
+| **Sector 8** | **Cryptographic Attestation** | Attaches HMAC SHA-256 signatures (`bfa_attest_...`) to response payloads for verifiable provenance. | AI Hallucination, Payload Tampering |
 
 ### 🔒 Enforced Security Policies (ABAC Specification)
 
@@ -101,9 +112,13 @@ Tested across **150 automated agent execution runs** comparing **Direct Microser
 | **Audit Trace Completeness** | `14.2%` (Fragmented logs) | **`100.0%` (Unified Trace)** | **100% Attributable Audit Trail** |
 | **Average Execution Latency** | `42 ms` | **`49 ms`** (+7 ms overhead) | **+1.4% LLM Time Budget** |
 
-### 🧪 21-Point Multi-Sector Test Suite Results (`npm test`)
+### 🧪 24-Point Multi-Sector Test Suite Results (`npm test`)
 
 ```
+══════════════════════════════════════════════════════════════════════
+   🛡️  BFA MULTI-SECTOR COMPREHENSIVE SECURITY & AUDIT SUITE
+══════════════════════════════════════════════════════════════════════
+
 ▶ SECTOR 1: Validator & Input/Output Sanitizer Tests
   [Validator] ✅ PASS: Blocks prototype pollution (__proto__)
   [Validator] ✅ PASS: Blocks case-insensitive prompt injection payload
@@ -135,7 +150,18 @@ Tested across **150 automated agent execution runs** comparing **Direct Microser
   [BFACore] ✅ PASS: Adversarial attack returns DENIED with POL_002 rule ID
   [BFACore] ✅ PASS: Indirect prompt injection returns INVALID_INPUT
 
-📊 AUDIT SUMMARY: 21/21 TESTS PASSED (100.0% ACCURACY)
+▶ SECTOR 6: Active Defense Honeypot Decoy Tests
+  [Honeypot] ✅ PASS: Intercepts decoy tool call and returns HONEYPOT_TRIGGERED
+
+▶ SECTOR 7: Dynamic Schema Pruning Tests
+  [SchemaPruning] ✅ PASS: Prunes active defense honeypots from prompt schemas
+
+▶ SECTOR 8: Cryptographic Output Attestation Tests
+  [Attestation] ✅ PASS: Attaches cryptographic HMAC attestation token to output payload
+
+──────────────────────────────────────────────────────────────────────
+ 📊 AUDIT SUMMARY: 24/24 TESTS PASSED (100.0% ACCURACY)
+──────────────────────────────────────────────────────────────────────
 ```
 
 ---
@@ -144,12 +170,12 @@ Tested across **150 automated agent execution runs** comparing **Direct Microser
 
 The project features a modern, dark-themed glassmorphism Web Dashboard served directly by the Express gateway on `http://localhost:3000`:
 
-- **💬 AI Chat Agent Interface:** Interactive natural language assistant testing real-time intent recognition and BFA execution.
+- **💬 AI Chat Agent Interface:** Interactive natural language assistant testing real-time intent recognition and BFA execution. Features single-click quick prompts for normal actions and security attacks (e.g., Decoy Honeypot trigger).
 - **⚡ Execution Sandbox:** Execute pre-configured agent workload scenarios (*Campus Assistant*, *Procurement Agent*, *Adversarial Attacker*) or raw tool JSON calls.
 - **🛡️ ABAC Policy Inspector:** Interactive cards detailing active security rules, target subjects, and conditions.
-- **📜 Real-Time Audit Trail:** Live table featuring verdict filtering, trace ID lookup, and performance duration metrics.
+- **📜 Real-Time Audit Trail:** Live table featuring verdict filtering (`ALLOWED`, `DENIED`, `RATE_LIMITED`, `HONEYPOT_TRIGGERED`), trace ID lookup, and performance duration metrics.
 - **📊 Benchmark Visualizer:** Real-time metrics breakdown comparing Direct API vs. BFA Mode.
-- **🔧 Tool Registry:** Curated LLM schema inspector displaying exposed parameters and types.
+- **🔧 Tool Registry:** Curated LLM schema inspector displaying exposed parameters, types, and active defense honeypots.
 
 ---
 
@@ -186,6 +212,7 @@ npm run agent -- "Cancel booking bk_102"
 ### Prerequisites
 - **Node.js** >= v18.x (Tested on Node v24.x)
 - **npm** >= 9.x
+- **Docker** *(Optional, for containerized deployment)*
 
 ### Setup Steps
 
@@ -217,12 +244,14 @@ docker run -p 3000:3000 bfa-gateway
 bfa-gateway/
 ├── BFA_Research_Paper.md         # Full Academic Research Paper
 ├── README.md                     # Architecture & Documentation (This File)
+├── Dockerfile                    # Production Multi-Stage Docker Build
+├── .dockerignore                 # Docker build context exclusion rules
 ├── package.json                  # Dependencies & npm scripts
 ├── tsconfig.json                 # TypeScript configuration
 ├── src/
 │   ├── bfa-gateway/             # BFA Core Middleware Engine
-│   │   ├── bfaCore.ts            # Main execution pipeline coordinator
-│   │   ├── toolRegistry.ts       # Curated LLM tool schema definitions
+│   │   ├── bfaCore.ts            # Main execution pipeline & HMAC attestation coordinator
+│   │   ├── toolRegistry.ts       # Curated tool definitions & dynamic schema pruner
 │   │   ├── policyEngine.ts       # ABAC security rules & policy evaluator
 │   │   ├── validatorSanitizer.ts # Input validation, injection filter, output pruning
 │   │   ├── rateLimiter.ts        # Dual-bucket sliding window rate limiter
@@ -237,7 +266,7 @@ bfa-gateway/
 │   │   ├── naturalAgent.ts       # Natural language query processing engine
 │   │   └── agentSimulator.ts     # Pre-built workload & attack scenario generator
 │   ├── evaluation/               # Benchmark & Testing Suite
-│   │   ├── sectorTests.ts        # 21-point multi-sector security test runner
+│   │   ├── sectorTests.ts        # 24-point multi-sector security test runner
 │   │   ├── benchmark.ts          # 150-run comparative metric suite
 │   │   └── benchmarkRunner.ts    # Standalone benchmark CLI test runner
 │   ├── public/                   # Web Dashboard Frontend Assets
