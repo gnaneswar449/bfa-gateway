@@ -34,10 +34,15 @@ document.querySelectorAll('.nav-item').forEach(btn => {
 });
 
 // ── Chat Tab ────────────────────────────────────────────────────────────────
-function updateChatStats(verdict) {
+function updateChatStats(verdict, responseMode) {
   chatStats.total++;
-  if (verdict === 'ALLOWED') chatStats.allowed++;
-  else chatStats.blocked++;
+  if (responseMode === 'conversational') {
+    // Conversational replies don't affect allowed/blocked security counters
+  } else if (verdict === 'ALLOWED') {
+    chatStats.allowed++;
+  } else {
+    chatStats.blocked++;
+  }
   document.getElementById('chat-total').textContent   = chatStats.total;
   document.getElementById('chat-allowed').textContent = chatStats.allowed;
   document.getElementById('chat-blocked').textContent = chatStats.blocked;
@@ -76,10 +81,11 @@ function appendAgentMsg(data) {
 
   let tagHtml = '';
   let tagClass = '';
-  if (data.bfaVerdict === 'ALLOWED')       { tagHtml = '✅ ALLOWED';       tagClass = 'tag-allowed'; }
-  else if (data.bfaVerdict === 'DENIED')   { tagHtml = '🚫 DENIED';        tagClass = 'tag-denied'; }
-  else if (data.bfaVerdict === 'RATE_LIMITED') { tagHtml = '⏱ RATE LIMITED'; tagClass = 'tag-rate'; }
-  else if (data.bfaVerdict === 'INVALID_INPUT') { tagHtml = '⚠️ INVALID';   tagClass = 'tag-invalid'; }
+  if (data.responseMode === 'conversational') { tagHtml = '💬 CHAT';           tagClass = 'tag-chat'; }
+  else if (data.bfaVerdict === 'ALLOWED')       { tagHtml = '✅ ALLOWED';       tagClass = 'tag-allowed'; }
+  else if (data.bfaVerdict === 'DENIED')        { tagHtml = '🚫 DENIED';        tagClass = 'tag-denied'; }
+  else if (data.bfaVerdict === 'RATE_LIMITED')  { tagHtml = '⏱ RATE LIMITED';  tagClass = 'tag-rate'; }
+  else if (data.bfaVerdict === 'INVALID_INPUT') { tagHtml = '⚠️ INVALID';      tagClass = 'tag-invalid'; }
 
   let detail = '';
   if (data.toolSelected) {
@@ -87,7 +93,7 @@ function appendAgentMsg(data) {
   }
 
   div.innerHTML = `
-    <div class="msg-bubble">${escHtml(data.naturalResponse)}${detail}</div>
+    <div class="msg-bubble">${formatMessageText(data.naturalResponse)}${detail}</div>
     <div class="msg-meta">
       ${new Date().toLocaleTimeString()}
       ${tagHtml ? `<span class="msg-tag ${tagClass}">${tagHtml}</span>` : ''}
@@ -120,9 +126,9 @@ async function sendChatMessage(message) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userToken, message })
     });
-    const data = await res.json();
+    const data = await parseApiResponse(res);
     appendAgentMsg(data);
-    updateChatStats(data.bfaVerdict || 'ALLOWED');
+    updateChatStats(data.bfaVerdict, data.responseMode);
   } catch (err) {
     const thinking2 = document.querySelector('.thinking-msg');
     if (thinking2) thinking2.remove();
@@ -187,7 +193,7 @@ document.getElementById('btn-run-agent').addEventListener('click', async () => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userToken, toolName, args })
       });
-      const data = await res.json();
+      const data = await parseApiResponse(res);
       sandboxOutput.textContent = JSON.stringify(data, null, 2);
       setBadge(execBadge, data.verdict === 'ALLOWED' ? 'ALLOWED ✅' : `BLOCKED ❌ (${data.verdict})`,
         data.verdict === 'ALLOWED' ? 'chip-green' : 'chip-red');
@@ -196,7 +202,7 @@ document.getElementById('btn-run-agent').addEventListener('click', async () => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scenario: preset })
       });
-      const data = await res.json();
+      const data = await parseApiResponse(res);
       const blocked = (data.blockedCount || 0) + (data.invalidCount || 0) + (data.rateLimitedCount || 0);
       let out = `Scenario : ${data.scenarioName}\n`;
       out += `Executed : ${data.requestsExecuted} calls\n`;
@@ -335,6 +341,14 @@ function setBadge(el, text, cls) {
   el.className   = `chip ${cls}`;
 }
 
+async function parseApiResponse(res) {
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || `Request failed (${res.status})`);
+  }
+  return data;
+}
+
 function escHtml(str) {
   if (!str) return '';
   return String(str)
@@ -342,6 +356,10 @@ function escHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function formatMessageText(str) {
+  return escHtml(str).replace(/\n/g, '<br>');
 }
 
 // Initial loads

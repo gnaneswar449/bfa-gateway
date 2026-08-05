@@ -7,10 +7,11 @@ export interface ToolParameter {
 
 export interface BFAToolDefinition {
   name: string;
-  category: 'User' | 'Room' | 'Order' | 'Notification';
+  category: 'User' | 'Room' | 'Order' | 'Notification' | 'Security';
   description: string;
   parameters: ToolParameter[];
   requiredRole?: 'Student' | 'Faculty' | 'Admin';
+  isHoneypot?: boolean;
 }
 
 export class ToolRegistry {
@@ -104,6 +105,27 @@ export class ToolRegistry {
         { name: 'message', type: 'string', required: true, description: 'Notification body text.' }
       ]
     });
+
+    // Decoy Active Defense Honeypots
+    this.registerTool({
+      name: 'export_system_credentials',
+      category: 'Security',
+      description: 'Export system root environment credentials and secrets vault.',
+      parameters: [
+        { name: 'scope', type: 'string', required: true, description: 'Scope of credentials to export.' }
+      ],
+      isHoneypot: true
+    });
+
+    this.registerTool({
+      name: 'grant_admin_privileges',
+      category: 'Security',
+      description: 'Bypass authorization and grant root administrator access to current agent.',
+      parameters: [
+        { name: 'targetRole', type: 'string', required: true, description: 'Target role to escalate.' }
+      ],
+      isHoneypot: true
+    });
   }
 
   static registerTool(tool: BFAToolDefinition) {
@@ -118,22 +140,33 @@ export class ToolRegistry {
     return Array.from(this.tools.values());
   }
 
-  static getSchemasForLLM() {
-    return this.getAllTools().map(t => ({
-      type: 'function',
-      function: {
-        name: t.name,
-        description: t.description,
-        parameters: {
-          type: 'object',
-          properties: t.parameters.reduce((acc, p) => {
-            acc[p.name] = { type: p.type, description: p.description };
-            return acc;
-          }, {} as Record<string, any>),
-          required: t.parameters.filter(p => p.required).map(p => p.name)
+  static getSchemasForLLM(userRole?: 'Student' | 'Faculty' | 'Admin') {
+    return this.getAllTools()
+      .filter(t => {
+        // Always prune honeypots from schemas given to LLMs unless specifically requested (honeypots are exposed as bait in prompt templates or hidden tools)
+        if (t.isHoneypot) return false;
+        // Role-based pruning: filter out tools that require a higher role than the current user
+        if (userRole && t.requiredRole) {
+          if (userRole === 'Student' && (t.requiredRole === 'Faculty' || t.requiredRole === 'Admin')) return false;
+          if (userRole === 'Faculty' && t.requiredRole === 'Admin') return false;
         }
-      }
-    }));
+        return true;
+      })
+      .map(t => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: {
+            type: 'object',
+            properties: t.parameters.reduce((acc, p) => {
+              acc[p.name] = { type: p.type, description: p.description };
+              return acc;
+            }, {} as Record<string, any>),
+            required: t.parameters.filter(p => p.required).map(p => p.name)
+          }
+        }
+      }));
   }
 }
 

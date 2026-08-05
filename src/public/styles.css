@@ -287,6 +287,7 @@ body {
   font-size: 10px; padding: 2px 7px; border-radius: 6px; font-weight: 600;
 }
 .tag-allowed { background: rgba(52,211,153,0.15); color: var(--green); }
+.tag-chat    { background: rgba(56,189,248,0.15); color: var(--blue); }
 .tag-denied  { background: rgba(248,113,113,0.15); color: var(--red); }
 .tag-rate    { background: rgba(251,191,36,0.15);  color: var(--yellow); }
 .tag-invalid { background: rgba(100,116,139,0.2);  color: var(--muted); }

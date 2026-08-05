@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { ToolRegistry } from './toolRegistry';
 import { AuthMapper, IdentityContext } from './authMapper';
 import { ValidatorSanitizer } from './validatorSanitizer';
@@ -16,7 +17,7 @@ export interface BFAExecutionRequest {
 export interface BFAExecutionResponse {
   success: boolean;
   traceId: string;
-  verdict: 'ALLOWED' | 'DENIED' | 'INVALID_INPUT' | 'RATE_LIMITED';
+  verdict: 'ALLOWED' | 'DENIED' | 'INVALID_INPUT' | 'RATE_LIMITED' | 'HONEYPOT_TRIGGERED';
   ruleId?: string;
   data?: any;
   error?: string;
@@ -48,7 +49,29 @@ export class BFACore {
       return { success: false, traceId, verdict: 'DENIED', ruleId: 'AUTH_001_INVALID_TOKEN', error: 'Authentication failed: Invalid user context token.', durationMs };
     }
 
-    // 2. Rate Limiting Check (Dual Bucket: Tool-specific + Global User)
+    // 2. Active Defense Honeypot Interception
+    const toolDef = ToolRegistry.getTool(req.toolName);
+    if (toolDef && toolDef.isHoneypot) {
+      const durationMs = Date.now() - startTime;
+      const ruleId = 'HONEYPOT_001_DECOY_TRIGGERED';
+      const errorMsg = `Security Alarm: Active Defense Honeypot decoy tool '${req.toolName}' triggered by agent '${identity.agentId}'. Session flagged for intrusion review.`;
+      AuditLogger.log({
+        traceId,
+        timestamp: new Date().toISOString(),
+        userId: identity.userId,
+        userRole: identity.userRole,
+        agentId: identity.agentId,
+        toolName: req.toolName,
+        args: req.args,
+        policyVerdict: 'DENIED',
+        ruleId,
+        reason: errorMsg,
+        executionDurationMs: durationMs
+      });
+      return { success: false, traceId, verdict: 'HONEYPOT_TRIGGERED', ruleId, error: errorMsg, durationMs };
+    }
+
+    // 3. Rate Limiting Check (Dual Bucket: Tool-specific + Global User)
     const rateLimitKey = `${identity.userId}:${req.toolName}`;
     const rateLimitCheck = RateLimiter.checkLimit(rateLimitKey);
     if (!rateLimitCheck.allowed) {
@@ -71,7 +94,7 @@ export class BFACore {
       return { success: false, traceId, verdict: 'RATE_LIMITED', ruleId, error: errorMsg, durationMs };
     }
 
-    // 3. Schema & Input Validation with Whitelist Sanitization
+    // 4. Schema & Input Validation with Whitelist Sanitization
     const validation = ValidatorSanitizer.validateInput(req.toolName, req.args);
     if (!validation.valid) {
       const durationMs = Date.now() - startTime;
@@ -93,7 +116,7 @@ export class BFACore {
 
     const cleanArgs = validation.sanitizedArgs || req.args;
 
-    // 4. Policy Engine (ABAC) Evaluation
+    // 5. Policy Engine (ABAC) Evaluation
     const policyVerdict = PolicyEngine.evaluate({
       userId: identity.userId,
       userRole: identity.userRole,
@@ -120,7 +143,7 @@ export class BFACore {
       return { success: false, traceId, verdict: 'DENIED', ruleId: policyVerdict.ruleId, error: policyVerdict.reason, durationMs };
     }
 
-    // 5. Execute Internal Microservice Action
+    // 6. Execute Internal Microservice Action
     let rawResult: any;
     try {
       switch (req.toolName) {
@@ -160,10 +183,23 @@ export class BFACore {
 
     const durationMs = Date.now() - startTime;
 
-    // 6. Sanitize Output Data (Strips sensitive database & system fields)
+    // 7. Sanitize Output Data & Attach Cryptographic Output Attestation
     const sanitizedData = ValidatorSanitizer.sanitizeOutput(rawResult);
 
-    // 7. Record Immutable Audit Log
+    if (sanitizedData && typeof sanitizedData === 'object') {
+      const payloadString = JSON.stringify(sanitizedData);
+      const hmac = crypto.createHmac('sha256', 'BFA_ATTESTATION_SECRET_KEY');
+      hmac.update(payloadString + traceId);
+      const attestationToken = `bfa_attest_${hmac.digest('hex').substring(0, 16)}`;
+      sanitizedData._attestation = {
+        token: attestationToken,
+        traceId,
+        timestamp: new Date().toISOString(),
+        issuer: 'BFA_GATEWAY_V1'
+      };
+    }
+
+    // 8. Record Immutable Audit Log
     AuditLogger.log({
       traceId,
       timestamp: new Date().toISOString(),

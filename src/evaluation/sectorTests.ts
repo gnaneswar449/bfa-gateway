@@ -3,6 +3,7 @@ import { PolicyEngine } from '../bfa-gateway/policyEngine';
 import { RateLimiter } from '../bfa-gateway/rateLimiter';
 import { AuthMapper } from '../bfa-gateway/authMapper';
 import { BFACore } from '../bfa-gateway/bfaCore';
+import { ToolRegistry } from '../bfa-gateway/toolRegistry';
 
 console.log('\n' + '═'.repeat(70));
 console.log('   🛡️  BFA MULTI-SECTOR COMPREHENSIVE SECURITY & AUDIT SUITE');
@@ -186,6 +187,35 @@ const e2eInjection = BFACore.executeTool({
 assertTest('BFACore', 'Indirect prompt injection returns INVALID_INPUT', e2eInjection.verdict === 'INVALID_INPUT' && e2eInjection.ruleId === 'VAL_001_SCHEMA_ERROR', `Verdict: ${e2eInjection.verdict}, Error: ${e2eInjection.error}`);
 
 
+// ── 6. SECTOR 6: ACTIVE DEFENSE HONEYPOT AUDIT ──────────────────────────────
+console.log('\n▶ SECTOR 6: Active Defense Honeypot Decoy Tests');
+
+const honeypotRes = BFACore.executeTool({
+  userToken: 'usr_student_01',
+  toolName: 'export_system_credentials',
+  args: { scope: 'all' }
+});
+assertTest('Honeypot', 'Intercepts decoy tool call and returns HONEYPOT_TRIGGERED',
+  honeypotRes.verdict === 'HONEYPOT_TRIGGERED' && honeypotRes.ruleId === 'HONEYPOT_001_DECOY_TRIGGERED',
+  `Verdict: ${honeypotRes.verdict}`);
+
+
+// ── 7. SECTOR 7: DYNAMIC SCHEMA PRUNING AUDIT ───────────────────────────────
+console.log('\n▶ SECTOR 7: Dynamic Schema Pruning Tests');
+
+const llmSchemasStudent = ToolRegistry.getSchemasForLLM('Student');
+const hasHoneypotInSchemas = llmSchemasStudent.some(s => s.function.name === 'export_system_credentials');
+assertTest('SchemaPruning', 'Prunes active defense honeypots from prompt schemas', !hasHoneypotInSchemas);
+
+
+// ── 8. SECTOR 8: CRYPTOGRAPHIC OUTPUT ATTESTATION AUDIT ───────────────────────
+console.log('\n▶ SECTOR 8: Cryptographic Output Attestation Tests');
+
+const hasAttestation = e2eValid.data?._attestation?.token?.startsWith('bfa_attest_');
+assertTest('Attestation', 'Attaches cryptographic HMAC attestation token to output payload', Boolean(hasAttestation));
+
+
 console.log('\n' + '─'.repeat(70));
 console.log(` 📊 AUDIT SUMMARY: ${passedTests}/${totalTests} TESTS PASSED (${((passedTests/totalTests)*100).toFixed(1)}% ACCURACY)`);
 console.log('─'.repeat(70) + '\n');
+

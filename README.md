@@ -201,8 +201,12 @@ npm install
 npm start
 # 🌐 Access dashboard at: http://localhost:3000
 
-# 4. Run the 21-point Multi-Sector Security & Benchmark Test Suite
+# 4. Run the 24-point Multi-Sector Security & Benchmark Test Suite
 npm test
+
+# 🐳 Alternatively, run via Docker container:
+docker build -t bfa-gateway .
+docker run -p 3000:3000 bfa-gateway
 ```
 
 ---
