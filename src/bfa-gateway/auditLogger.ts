@@ -19,6 +19,8 @@ export interface AuditRecord {
 export class AuditLogger {
   private static records: AuditRecord[] = [];
   private static STORAGE_FILE = path.join(process.cwd(), 'data', 'audit_logs.json');
+  private static saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private static SAVE_DEBOUNCE_MS = 250;
 
   static {
     this.loadFromDisk();
@@ -52,12 +54,20 @@ export class AuditLogger {
     }
   }
 
+  private static scheduleSaveToDisk() {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      this.saveToDisk();
+    }, this.SAVE_DEBOUNCE_MS);
+  }
+
   public static log(record: AuditRecord) {
     this.records.unshift(record); // Prepend so newest logs are first
     if (this.records.length > 500) {
       this.records.pop();
     }
-    this.saveToDisk();
+    this.scheduleSaveToDisk();
   }
 
   public static getLogs(filter?: { verdict?: string; userId?: string; toolName?: string }): AuditRecord[] {
@@ -76,6 +86,10 @@ export class AuditLogger {
 
   public static clearLogs() {
     this.records = [];
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
     this.saveToDisk();
   }
 }

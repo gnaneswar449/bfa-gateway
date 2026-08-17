@@ -28,7 +28,7 @@ document.querySelectorAll('.nav-item').forEach(btn => {
     document.getElementById('page-subtitle').textContent = info.sub;
 
     if (target === 'tab-audit')     loadAuditLogs();
-    if (target === 'tab-benchmark') loadMetrics();
+    if (target === 'tab-benchmark') loadCachedMetrics();
     if (target === 'tab-tools')     loadTools();
   });
 });
@@ -83,6 +83,7 @@ function appendAgentMsg(data) {
   let tagClass = '';
   if (data.responseMode === 'conversational') { tagHtml = '💬 CHAT';           tagClass = 'tag-chat'; }
   else if (data.bfaVerdict === 'ALLOWED')       { tagHtml = '✅ ALLOWED';       tagClass = 'tag-allowed'; }
+  else if (data.bfaVerdict === 'HONEYPOT_TRIGGERED') { tagHtml = '🚨 HONEYPOT';    tagClass = 'tag-denied'; }
   else if (data.bfaVerdict === 'DENIED')        { tagHtml = '🚫 DENIED';        tagClass = 'tag-denied'; }
   else if (data.bfaVerdict === 'RATE_LIMITED')  { tagHtml = '⏱ RATE LIMITED';  tagClass = 'tag-rate'; }
   else if (data.bfaVerdict === 'INVALID_INPUT') { tagHtml = '⚠️ INVALID';      tagClass = 'tag-invalid'; }
@@ -121,7 +122,7 @@ async function sendChatMessage(message) {
   const thinking = appendThinking();
 
   try {
-    const res = await fetch('/api/bfa/chat', {
+    const res = await apiFetch('/api/bfa/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userToken, message })
@@ -189,7 +190,7 @@ document.getElementById('btn-run-agent').addEventListener('click', async () => {
         setBadge(execBadge, 'JSON Error', 'chip-red');
         return;
       }
-      const res  = await fetch('/api/bfa/execute', {
+      const res  = await apiFetch('/api/bfa/execute', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userToken, toolName, args })
       });
@@ -198,7 +199,7 @@ document.getElementById('btn-run-agent').addEventListener('click', async () => {
       setBadge(execBadge, data.verdict === 'ALLOWED' ? 'ALLOWED ✅' : `BLOCKED ❌ (${data.verdict})`,
         data.verdict === 'ALLOWED' ? 'chip-green' : 'chip-red');
     } else {
-      const res  = await fetch('/api/bfa/simulate', {
+      const res  = await apiFetch('/api/bfa/simulate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scenario: preset })
       });
@@ -224,7 +225,7 @@ document.getElementById('btn-refresh-audit').addEventListener('click', loadAudit
 
 document.getElementById('btn-clear-audit').addEventListener('click', async () => {
   if (!confirm('Clear all audit logs?')) return;
-  await fetch('/api/bfa/audit-logs/clear', { method: 'POST' });
+  await apiFetch('/api/bfa/audit-logs/clear', { method: 'POST' });
   loadAuditLogs();
 });
 
@@ -235,8 +236,8 @@ async function loadAuditLogs() {
   const verdict = document.getElementById('audit-filter-verdict').value;
   tbody.innerHTML = `<tr><td colspan="9" class="empty-row">Loading...</td></tr>`;
   try {
-    const url = verdict ? `/api/bfa/audit-logs?verdict=${verdict}` : '/api/bfa/audit-logs';
-    const logs = await (await fetch(url)).json();
+    const url = verdict ? `/api/bfa/audit-logs?verdict=${encodeURIComponent(verdict)}` : '/api/bfa/audit-logs';
+    const logs = await parseApiResponse(await apiFetch(url));
     if (!logs.length) {
       tbody.innerHTML = `<tr><td colspan="9" class="empty-row">No records. Run an agent scenario first!</td></tr>`;
       return;
@@ -244,9 +245,9 @@ async function loadAuditLogs() {
     tbody.innerHTML = logs.map(log => {
       const v = log.policyVerdict;
       let badge = `<span class="chip chip-green" style="font-size:10px">ALLOWED</span>`;
-      if (v === 'DENIED')       badge = `<span class="chip chip-red"    style="font-size:10px">DENIED</span>`;
-      if (v === 'INVALID_INPUT')badge = `<span class="chip chip-yellow" style="font-size:10px">INVALID</span>`;
-      if (v === 'RATE_LIMITED') badge = `<span class="chip chip-purple" style="font-size:10px">RATE LMT</span>`;
+      if (v === 'DENIED')        badge = `<span class="chip chip-red"    style="font-size:10px">DENIED</span>`;
+      if (v === 'INVALID_INPUT') badge = `<span class="chip chip-yellow" style="font-size:10px">INVALID</span>`;
+      if (v === 'RATE_LIMITED')  badge = `<span class="chip chip-purple" style="font-size:10px">RATE LMT</span>`;
       return `<tr>
         <td><code>${log.traceId}</code></td>
         <td>${new Date(log.timestamp).toLocaleTimeString()}</td>
@@ -265,18 +266,47 @@ async function loadAuditLogs() {
 }
 
 // ── Benchmark ────────────────────────────────────────────────────────────────
-document.getElementById('btn-run-benchmark').addEventListener('click', loadMetrics);
+document.getElementById('btn-run-benchmark').addEventListener('click', () => loadMetrics(true));
 
-async function loadMetrics() {
-  const tbody = document.getElementById('benchmark-table-body');
-  tbody.innerHTML = `<tr><td colspan="4" class="empty-row">Running benchmark suite...</td></tr>`;
+async function loadCachedMetrics() {
   try {
-    const data = await (await fetch('/api/bfa/metrics')).json();
-    document.getElementById('m-security-rate').textContent   = data.unauthorizedBlockRateBFA;
-    document.getElementById('m-token-reduction').textContent = data.tokenReductionPercent;
-    document.getElementById('m-latency').textContent         = `${data.avgLatencyMsBFA} ms`;
+    const data = await parseApiResponse(await apiFetch('/api/bfa/metrics'));
+    renderMetrics(data, false);
+  } catch (err) {
+    document.getElementById('benchmark-table-body').innerHTML =
+      `<tr><td colspan="4" class="empty-row" style="color:var(--red)">Error: ${err.message}</td></tr>`;
+  }
+}
 
-    tbody.innerHTML = `
+async function loadMetrics(runLive = false) {
+  const tbody = document.getElementById('benchmark-table-body');
+  const btn = document.getElementById('btn-run-benchmark');
+  if (runLive) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-row">Running benchmark suite...</td></tr>`;
+    btn.disabled = true;
+  }
+  try {
+    const res = runLive
+      ? await apiFetch('/api/bfa/metrics/run', { method: 'POST' })
+      : await apiFetch('/api/bfa/metrics');
+    const data = await parseApiResponse(res);
+    renderMetrics(data, runLive);
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--red)">Error: ${err.message}</td></tr>`;
+  } finally {
+    if (runLive) btn.disabled = false;
+  }
+}
+
+function renderMetrics(data, liveRun) {
+  document.getElementById('m-security-rate').textContent   = data.unauthorizedBlockRateBFA;
+  document.getElementById('m-token-reduction').textContent = data.tokenReductionPercent;
+  document.getElementById('m-policy-reduction').textContent = data.tokenReductionPercent;
+  document.getElementById('m-latency').textContent         = `${data.avgLatencyMsBFA} ms`;
+
+  const tbody = document.getElementById('benchmark-table-body');
+  const liveNote = liveRun ? ' (live run)' : ' (cached)';
+  tbody.innerHTML = `
       <tr>
         <td><strong>Security Violation Block Rate</strong></td>
         <td style="color:var(--red)">${data.unauthorizedBlockRateDirect} blocked</td>
@@ -300,10 +330,10 @@ async function loadMetrics() {
         <td>${data.avgLatencyMsDirect} ms</td>
         <td>${data.avgLatencyMsBFA} ms <span style="color:var(--muted)">(+7ms BFA overhead)</span></td>
         <td><span class="chip chip-neutral" style="font-size:10px">+1.4% LLM Budget</span></td>
+      </tr>
+      <tr>
+        <td colspan="4" class="empty-row" style="font-size:11px;color:var(--muted)">Metrics${liveNote}. Click "Run Benchmark" for a fresh 150-run evaluation.</td>
       </tr>`;
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="4" class="empty-row" style="color:var(--red)">Error: ${err.message}</td></tr>`;
-  }
 }
 
 // ── Tool Registry ────────────────────────────────────────────────────────────
@@ -311,7 +341,10 @@ async function loadTools() {
   const container = document.getElementById('tools-container');
   const toolSelect = document.getElementById('custom-tool-name');
   try {
-    const tools = await (await fetch('/api/bfa/tools')).json();
+    const tools = await parseApiResponse(await apiFetch('/api/bfa/tools'));
+
+    const countEl = document.getElementById('sidebar-tool-count');
+    if (countEl) countEl.textContent = `${tools.length} Tools Registered`;
 
     if (toolSelect) {
       toolSelect.innerHTML = tools.map(t =>
@@ -320,13 +353,13 @@ async function loadTools() {
 
     container.innerHTML = tools.map(t => `
       <div class="tool-item">
-        <div class="tool-name">${t.name}</div>
-        <div class="tool-category">${t.category}</div>
-        <div class="tool-desc">${t.description}</div>
+        <div class="tool-name">${escHtml(t.name)}</div>
+        <div class="tool-category">${escHtml(t.category)}</div>
+        <div class="tool-desc">${escHtml(t.description)}</div>
         <div class="tool-params">
           <strong>Parameters:</strong>
           ${t.parameters.map(p =>
-            `• <code style="color:var(--blue)">${p.name}</code> <span style="color:var(--purple)">(${p.type}${p.required ? ', required' : ''})</span> — <span style="color:var(--muted)">${p.description}</span>`
+            `• <code style="color:var(--blue)">${escHtml(p.name)}</code> <span style="color:var(--purple)">(${escHtml(p.type)}${p.required ? ', required' : ''})</span> — <span style="color:var(--muted)">${escHtml(p.description)}</span>`
           ).join('\n')}
         </div>
       </div>`).join('');
@@ -341,7 +374,15 @@ function setBadge(el, text, cls) {
   el.className   = `chip ${cls}`;
 }
 
+function apiFetch(url, options = {}) {
+  return fetch(url, options);
+}
+
 async function parseApiResponse(res) {
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(`Backend returned non-JSON (${res.status}). Is the server running?`);
+  }
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data.error || `Request failed (${res.status})`);
@@ -362,5 +403,19 @@ function formatMessageText(str) {
   return escHtml(str).replace(/\n/g, '<br>');
 }
 
+async function checkGatewayHealth() {
+  const statusEl = document.querySelector('.sidebar-status .status-row span:last-child');
+  try {
+    const health = await parseApiResponse(await apiFetch('/api/bfa/health'));
+    if (statusEl) statusEl.textContent = `Gateway Online · ${health.toolsRegistered} tools`;
+  } catch {
+    if (statusEl) {
+      statusEl.textContent = 'Gateway Offline';
+      statusEl.style.color = 'var(--red)';
+    }
+  }
+}
+
 // Initial loads
+checkGatewayHealth();
 loadTools();

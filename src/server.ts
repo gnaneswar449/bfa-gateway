@@ -17,9 +17,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // REST API Endpoints
 
-// 1. Get All Registered BFA Tools
+// 1. Get All Registered BFA Tools (excludes honeypots from public agent view)
 app.get('/api/bfa/tools', (req: Request, res: Response) => {
-  res.json(ToolRegistry.getAllTools());
+  const includeHoneypots = req.query.includeHoneypots === 'true';
+  const tools = ToolRegistry.getAllTools();
+  res.json(includeHoneypots ? tools : tools.filter(t => !t.isHoneypot));
+});
+
+// 1b. Health check — fast connectivity probe for dashboard
+app.get('/api/bfa/health', (_req: Request, res: Response) => {
+  res.json({
+    status: 'online',
+    microservices: ['UserService', 'RoomService', 'OrderService', 'NotificationService'],
+    toolsRegistered: ToolRegistry.getAllTools().filter(t => !t.isHoneypot).length,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // 2. Execute BFA Tool Call
@@ -83,14 +95,27 @@ app.post('/api/bfa/audit-logs/clear', (_req: Request, res: Response) => {
   res.json({ success: true, message: 'Audit logs cleared.' });
 });
 
-// 5. Get Benchmark Metrics
-app.get('/api/bfa/metrics', (req: Request, res: Response) => {
+// 5. Get Benchmark Metrics (cached — instant response)
+app.get('/api/bfa/metrics', (_req: Request, res: Response) => {
+  res.json(BenchmarkSuite.getCachedMetrics());
+});
+
+// 5b. Run full benchmark suite (heavy — only on explicit request)
+app.post('/api/bfa/metrics/run', (_req: Request, res: Response) => {
   const metrics = BenchmarkSuite.runFullBenchmark();
   res.json(metrics);
 });
 
-// Fallback middleware serving index.html
+// API 404 — return JSON instead of dashboard HTML for unknown API routes
+app.use('/api', (_req: Request, res: Response) => {
+  res.status(404).json({ error: 'API endpoint not found.' });
+});
+
+// Fallback middleware serving index.html for SPA routes
 app.use((req: Request, res: Response) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found.' });
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
