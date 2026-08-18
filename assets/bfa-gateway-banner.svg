@@ -1,0 +1,53 @@
+<svg width="1200" height="320" viewBox="0 0 1200 320" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description">
+  <title id="title">BFA Gateway</title>
+  <desc id="description">A secure control plane for AI agent tool calls</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1200" y2="320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#071426"/>
+      <stop offset="0.52" stop-color="#102A48"/>
+      <stop offset="1" stop-color="#17153B"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="150" y1="80" x2="1050" y2="250" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8"/>
+      <stop offset="0.55" stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-60%" width="180%" height="220%">
+      <feGaussianBlur stdDeviation="14" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M36 0H0V36" stroke="#93C5FD" stroke-opacity=".08"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="320" rx="22" fill="url(#background)"/>
+  <rect width="1200" height="320" rx="22" fill="url(#grid)"/>
+  <circle cx="1038" cy="86" r="134" fill="#38BDF8" fill-opacity=".10"/>
+  <circle cx="1077" cy="254" r="162" fill="#8B5CF6" fill-opacity=".12"/>
+  <path d="M752 70H1065M752 160H1118M752 250H1040" stroke="#7DD3FC" stroke-opacity=".35" stroke-width="2" stroke-dasharray="8 9"/>
+  <circle cx="776" cy="70" r="7" fill="#34D399" filter="url(#glow)"/>
+  <circle cx="971" cy="160" r="7" fill="#38BDF8" filter="url(#glow)"/>
+  <circle cx="1080" cy="250" r="7" fill="#A78BFA" filter="url(#glow)"/>
+  <rect x="76" y="72" width="116" height="116" rx="28" fill="url(#accent)"/>
+  <path d="M134 101L164 113V137C164 156 151 171 134 176C117 171 104 156 104 137V113L134 101Z" stroke="#061426" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M120 137L130 147L150 126" stroke="#061426" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="76" y="235" fill="#94A3B8" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="700" letter-spacing="3">BACK-END FOR AGENTS</text>
+  <text x="228" y="127" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="800">BFA Gateway</text>
+  <text x="230" y="166" fill="#C7D2FE" font-family="Arial, Helvetica, sans-serif" font-size="21">A secure control plane for AI agent tool calls.</text>
+  <g transform="translate(230 201)">
+    <rect width="134" height="32" rx="16" fill="#0D243B" stroke="#38BDF8" stroke-opacity=".45"/>
+    <circle cx="17" cy="16" r="5" fill="#34D399"/>
+    <text x="31" y="21" fill="#D1FAE5" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700">VALIDATE</text>
+    <rect x="146" width="125" height="32" rx="16" fill="#19183D" stroke="#A78BFA" stroke-opacity=".45"/>
+    <text x="167" y="21" fill="#DDD6FE" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700">AUTHORIZE</text>
+    <rect x="283" width="103" height="32" rx="16" fill="#12312E" stroke="#34D399" stroke-opacity=".45"/>
+    <text x="305" y="21" fill="#D1FAE5" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700">AUDIT</text>
+  </g>
+  <g transform="translate(752 105)">
+    <rect width="214" height="110" rx="18" fill="#071B31" fill-opacity=".82" stroke="#38BDF8" stroke-opacity=".35"/>
+    <path d="M34 61H72M142 61H180" stroke="#7DD3FC" stroke-width="3" stroke-linecap="round"/>
+    <rect x="76" y="37" width="62" height="48" rx="12" fill="url(#accent)"/>
+    <path d="M107 48L124 55V68C124 78 117 85 107 88C97 85 90 78 90 68V55L107 48Z" stroke="#071426" stroke-width="4" stroke-linejoin="round"/>
+    <text x="107" y="101" text-anchor="middle" fill="#E0F2FE" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700">GATEWAY</text>
+  </g>
+</svg>
